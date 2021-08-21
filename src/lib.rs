@@ -2,11 +2,11 @@
 
 use js_sys;
 use serde::{Deserialize, Serialize};
+use serde_json;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures;
 use wasm_logger;
 use yew::prelude::*;
-use serde_json;
 
 #[wasm_bindgen(
     inline_js = "export function invoke_tauri(cmd, args = {}) { return window.__TAURI_INVOKE__(cmd, args=args) }"
@@ -126,24 +126,14 @@ impl Component for Model {
     }
 
     fn view(&self) -> Html {
-        let set_key = self.link.callback(|event: FocusEvent| {
-            log::info!("FocusEvent: {}", event.detail());
-            Message::SetKey("123".into())
+        let on_key_input = self.link.callback(|event: InputData| {
+            Message::SetKey(event.value)
         });
-        let request_key = self.link.callback(|event: MouseEvent| {
-            log::info!("MouseEvent: {}", event.detail());
-            Message::RequestKey
-        });
-        let request_totp = self.link.callback(|event: MouseEvent| {
-            log::info!("MouseEvent: {}", event.detail());
-            Message::RequestTotp
-        });
+        let request_key = self.link.callback(|_| Message::RequestKey);
+        let request_totp = self.link.callback(|_| Message::RequestTotp);
         html! {
             <>
-            <form id="main-form" onsubmit=set_key >
-                <input id="key-input" name="key" />
-                <input type="submit" value="set key" />
-            </form>
+            <input oninput=on_key_input />
             <p>{format!("Key: {}", self.props.key)}</p>
             <button onclick=request_key >{"get key"}</button>
             <p>{format!("TOTP: {}", self.props.totp)}</p>
