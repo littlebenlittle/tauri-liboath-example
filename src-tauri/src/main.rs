@@ -9,7 +9,7 @@ use std::{
   time::{SystemTime, UNIX_EPOCH},
 };
 
-const TIMESTEP_OFFSET: u32 = 30;
+const TIMESTEP_OFFSET: u32 = 60;
 const DIGITS: Digits = Digits::Six;
 
 struct State {
@@ -24,6 +24,7 @@ fn main() {
     .manage(state)
     .invoke_handler(tauri::generate_handler![
         set_key,
+        get_key,
         get_totp,
     ])
     .run(tauri::generate_context!())
@@ -37,6 +38,16 @@ async fn set_key(state: tauri::State<'_, State>, new_secret: String) -> Result<(
   let new: TotpSecret = new_secret.into();
   *secret = new;
   Ok(())
+}
+
+
+#[tauri::command]
+async fn get_key(state: tauri::State<'_, State>) -> Result<String, ()> {
+  let arc: Arc<Mutex<TotpSecret>> = state.secret.clone();
+  let mutex_guard: MutexGuard<TotpSecret> = arc.lock().unwrap();
+  let secret: TotpSecret = mutex_guard.clone();
+  let ret: String = secret.into();
+  Ok(ret)
 }
 
 #[tauri::command]

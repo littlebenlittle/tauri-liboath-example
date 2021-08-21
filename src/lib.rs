@@ -1,11 +1,12 @@
 #![recursion_limit = "1024"]
 
 use js_sys;
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures;
 use wasm_logger;
 use yew::prelude::*;
-use serde::{Serialize, Deserialize};
+use serde_json;
 
 #[wasm_bindgen(
     inline_js = "export function invoke_tauri(cmd, args = {}) { return window.__TAURI_INVOKE__(cmd, args=args) }"
@@ -15,14 +16,25 @@ extern "C" {
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde( rename_all = "camelCase" )]
+#[serde(rename_all = "camelCase")]
 struct SetKeyRequest {
     new_secret: String,
 }
 
 async fn set_key(new_secret: String) {
-    let req = SetKeyRequest{new_secret: new_secret.into()};
+    let req = SetKeyRequest {
+        new_secret: new_secret.into(),
+    };
+    log::info!("setting key to: {}", serde_json::to_string(&req).unwrap());
     invoke_tauri("set_key", JsValue::from_serde(&req).unwrap()).await;
+}
+
+async fn get_key() -> String {
+    let answer = invoke_tauri("get_key", JsValue::undefined()).await;
+    match answer.as_string() {
+        Some(s) => s,
+        None => "unknown!".into(),
+    }
 }
 
 async fn get_totp() -> String {
@@ -42,13 +54,12 @@ pub fn main() -> Result<(), JsValue> {
     Ok(())
 }
 
-type TOTPKey = String;
-type TOTP = String;
-
 enum Message {
-    SetKey(TOTPKey),
-    RequestTOTP,
-    UpdateTOTP(TOTP),
+    SetKey(String),
+    RequestKey,
+    UpdateKey(String),
+    RequestTotp,
+    UpdateTOTP(String),
 }
 
 #[derive(Clone, PartialEq)]
@@ -83,7 +94,19 @@ impl Component for Model {
                 });
                 false
             }
-            Message::RequestTOTP => {
+            Message::RequestKey => {
+                let cb = self.link.callback(Message::UpdateKey);
+                wasm_bindgen_futures::spawn_local(async move {
+                    let key = get_key().await;
+                    cb.emit(key);
+                });
+                false
+            }
+            Message::UpdateKey(key) => {
+                self.props.key = key;
+                true
+            }
+            Message::RequestTotp => {
                 let cb = self.link.callback(Message::UpdateTOTP);
                 wasm_bindgen_futures::spawn_local(async move {
                     let totp = get_totp().await;
@@ -107,9 +130,13 @@ impl Component for Model {
             log::info!("FocusEvent: {}", event.detail());
             Message::SetKey("123".into())
         });
+        let request_key = self.link.callback(|event: MouseEvent| {
+            log::info!("MouseEvent: {}", event.detail());
+            Message::RequestKey
+        });
         let request_totp = self.link.callback(|event: MouseEvent| {
             log::info!("MouseEvent: {}", event.detail());
-            Message::RequestTOTP
+            Message::RequestTotp
         });
         html! {
             <>
@@ -118,6 +145,7 @@ impl Component for Model {
                 <input type="submit" value="set key" />
             </form>
             <p>{format!("Key: {}", self.props.key)}</p>
+            <button onclick=request_key >{"get key"}</button>
             <p>{format!("TOTP: {}", self.props.totp)}</p>
             <button onclick=request_totp >{"get totp"}</button>
             </>
