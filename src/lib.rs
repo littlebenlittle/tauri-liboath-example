@@ -15,12 +15,13 @@ extern "C" {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde( rename_all = "camelCase" )]
 struct SetKeyRequest {
-    key: String,
+    new_secret: String,
 }
 
-async fn set_key(key: String) {
-    let req = SetKeyRequest{key: key.into()};
+async fn set_key(new_secret: String) {
+    let req = SetKeyRequest{new_secret: new_secret.into()};
     invoke_tauri("set_key", JsValue::from_serde(&req).unwrap()).await;
 }
 
